@@ -37,12 +37,22 @@ jobs:
           cp -rf $GITHUB_WORKSPACE/files .
           [ -f files/etc/rc.local ] && chmod +x files/etc/rc.local
 
-      - name: Build RootFS
+     - name: Build RootFS
         run: |
           cd $IB_NAME
           PACKAGES=$(cat $GITHUB_WORKSPACE/config/normal-packages.config | tr -s "\n" " ")
-          make image PACKAGES="$PACKAGES" FILES="files"
-          # 将生成的 rootfs 移动到根目录供 Dockerfile 使用
+          
+          # 核心修正：拼写改为 CONFIG_TARGET_ROOTFS_TARGZ
+          make image PACKAGES="$PACKAGES" FILES="$GITHUB_WORKSPACE/files" \
+            CONFIG_TARGET_ROOTFS_TARGZ=y \
+            CONFIG_TARGET_IMAGES_GZ=n \
+            CONFIG_TARGET_IMAGE_ISO=n \
+            CONFIG_TARGET_IMAGE_VHDX=n \
+            CONFIG_VMDK_IMAGES=n \
+            CONFIG_GRUB_IMAGES=n \
+            CONFIG_TARGET_IMAGES_PAD=n
+
+          # 现在这个命令就能找到生成的 .tar.gz 文件了
           mv bin/targets/x86/64/*rootfs.tar.gz $GITHUB_WORKSPACE/openwrt-rootfs.tar.gz
 
       - name: Build and Push Docker Image
