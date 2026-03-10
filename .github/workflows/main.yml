@@ -1,9 +1,6 @@
 name: Build OpenWrt x86 Image
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: 0 0 * * *
 
 env:
   PREFIX_URL: https://downloads.immortalwrt.org/releases/24.10.5/targets/x86/64
