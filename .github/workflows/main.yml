@@ -1,55 +1,57 @@
-name: Build OpenWrt Docker Image
-
-env:
-PREFIX_URL: https://downloads.immortalwrt.org/releases/24.10.5/targets
+name: Build OpenWrt x86 Image
 
 on:
-workflow_dispatch:
-schedule:
-- cron: "0 0 * * *"
+  workflow_dispatch:
+  schedule:
+    - cron: 0 0 * * *
+
+env:
+  PREFIX_URL: https://downloads.immortalwrt.org/releases/24.10.5/targets/x86/64
+  IB_NAME: immortalwrt-imagebuilder-24.10.5-x86-64.Linux-x86_64
 
 jobs:
-build:
-name: Build x86_64 Image
-runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-steps:
-  - name: Checkout repository
-    uses: actions/checkout@v4
+      - name: Initialization Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses5-dev gawk git gettext \
+            libssl-dev xsltproc rsync wget unzip python3 qemu-utils zstd
 
-  - name: Install dependencies
-    run: |
-      sudo apt-get update
-      sudo apt-get install -y wget zstd
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PWD }}
 
-  - name: Login DockerHub
-    uses: docker/login-action@v3
-    with:
-      username: ${{ secrets.DOCKERHUB_USERNAME }}
-      password: ${{ secrets.DOCKERHUB_PWD }}
+      - name: Download and Setup Image Builder
+        run: |
+          wget -q $PREFIX_URL/$IB_NAME.tar.zst
+          tar --zstd -xf $IB_NAME.tar.zst
+          cd $IB_NAME
+          # 拷贝配置文件与自定义文件
+          cp -rf $GITHUB_WORKSPACE/files .
+          [ -f files/etc/rc.local ] && chmod +x files/etc/rc.local
 
-  - name: Download ImageBuilder
-    run: |
-      wget https://downloads.immortalwrt.org/releases/24.10.5/targets/x86/64/immortalwrt-imagebuilder-24.10.5-x86-64.Linux-x86_64.tar.zst
+      - name: Build RootFS
+        run: |
+          cd $IB_NAME
+          # 读取你的包列表（确保仓库中有此文件，或直接在此处列出包名）
+          PACKAGES=$(cat $GITHUB_WORKSPACE/config/normal-packages.config | tr -s "\n" " ")
+          make image PACKAGES="$PACKAGES" FILES="files"
+          # 将生成的 rootfs 移动到根目录供 Dockerfile 使用
+          mv bin/targets/x86/64/*rootfs.tar.gz $GITHUB_WORKSPACE/openwrt-rootfs.tar.gz
 
-  - name: Extract ImageBuilder
-    run: |
-      tar --zstd -xf immortalwrt-imagebuilder-*.tar.zst
-      mv immortalwrt-imagebuilder-* builder
-
-  - name: Build RootFS
-    run: |
-      cd builder
-      make image PACKAGES="luci"
-
-  - name: Copy RootFS
-    run: |
-      cp builder/bin/targets/x86/64/*rootfs.tar.gz .
-
-  - name: Build Docker Image
-    run: |
-      docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/openwrt:x86_64 .
-
-  - name: Push Docker Image
-    run: |
-      docker push ${{ secrets.DOCKERHUB_USERNAME }}/openwrt:x86_64
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/openwrt:x86_64
+            ${{ secrets.DOCKERHUB_USERNAME }}/openwrt:latest
