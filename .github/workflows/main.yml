@@ -40,7 +40,6 @@ jobs:
       - name: Build RootFS
         run: |
           cd $IB_NAME
-          # 读取你的包列表（确保仓库中有此文件，或直接在此处列出包名）
           PACKAGES=$(cat $GITHUB_WORKSPACE/config/normal-packages.config | tr -s "\n" " ")
           make image PACKAGES="$PACKAGES" FILES="files"
           # 将生成的 rootfs 移动到根目录供 Dockerfile 使用
