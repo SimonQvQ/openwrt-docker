@@ -10,11 +10,11 @@ schedule:
 
 jobs:
 build:
+name: Build x86_64 Image
 runs-on: ubuntu-latest
 
-```
 steps:
-  - name: Checkout
+  - name: Checkout repository
     uses: actions/checkout@v4
 
   - name: Install dependencies
@@ -30,7 +30,7 @@ steps:
 
   - name: Download ImageBuilder
     run: |
-      wget -q $PREFIX_URL/x86/64/immortalwrt-imagebuilder-24.10.5-x86-64.Linux-x86_64.tar.zst
+      wget https://downloads.immortalwrt.org/releases/24.10.5/targets/x86/64/immortalwrt-imagebuilder-24.10.5-x86-64.Linux-x86_64.tar.zst
 
   - name: Extract ImageBuilder
     run: |
@@ -53,60 +53,3 @@ steps:
   - name: Push Docker Image
     run: |
       docker push ${{ secrets.DOCKERHUB_USERNAME }}/openwrt:x86_64
-```
-name: Build OpenWrt Docker Image
-
-env:
-PREFIX_URL: https://downloads.immortalwrt.org/releases/24.10.5/targets
-
-on:
-workflow_dispatch:
-schedule:
-- cron: "0 0 * * *"
-
-jobs:
-build:
-runs-on: ubuntu-latest
-
-```
-steps:
-  - name: Checkout
-    uses: actions/checkout@v4
-
-  - name: Install dependencies
-    run: |
-      sudo apt-get update
-      sudo apt-get install -y wget zstd
-
-  - name: Login DockerHub
-    uses: docker/login-action@v3
-    with:
-      username: ${{ secrets.DOCKERHUB_USERNAME }}
-      password: ${{ secrets.DOCKERHUB_PWD }}
-
-  - name: Download ImageBuilder
-    run: |
-      wget -q $PREFIX_URL/x86/64/immortalwrt-imagebuilder-24.10.5-x86-64.Linux-x86_64.tar.zst
-
-  - name: Extract ImageBuilder
-    run: |
-      tar --zstd -xf immortalwrt-imagebuilder-*.tar.zst
-      mv immortalwrt-imagebuilder-* builder
-
-  - name: Build RootFS
-    run: |
-      cd builder
-      make image PACKAGES="luci"
-
-  - name: Copy RootFS
-    run: |
-      cp builder/bin/targets/x86/64/*rootfs.tar.gz .
-
-  - name: Build Docker Image
-    run: |
-      docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/openwrt:x86_64 .
-
-  - name: Push Docker Image
-    run: |
-      docker push ${{ secrets.DOCKERHUB_USERNAME }}/openwrt:x86_64
-```
