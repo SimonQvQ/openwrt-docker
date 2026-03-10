@@ -108,7 +108,7 @@ jobs:
         run: |
           # 解压刚才下载的 zstd 压缩 ImageBuilder
           tar --zstd -xf immortalwrt-imagebuilder-24.10.5-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64.tar.zst
-          cd immortalwrt-imagebuilder-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64
+          cd immortalwrt-imagebuilder-24.10.5-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64
           cp -f $GITHUB_WORKSPACE/config/repositories.conf .
           sed -i "s/DEVICE_SUBTARGET/$DEVICE_SUBTARGET/g; \
             s/DEVICE_TARGET/$DEVICE_TARGET/g; \
@@ -123,7 +123,7 @@ jobs:
 
       - name: Build Normal RootFS
         run: |
-          cd immortalwrt-imagebuilder-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64
+          cd immortalwrt-imagebuilder-24.10.5-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64
           chmod +x $GITHUB_WORKSPACE/scripts/*
           $GITHUB_WORKSPACE/scripts/preset-terminal-tools.sh
           sed -i "/CONFIG_TARGET_ROOTFS_SQUASHFS/s/.*/# CONFIG_TARGET_ROOTFS_SQUASHFS is not set/;
