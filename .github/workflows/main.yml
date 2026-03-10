@@ -107,8 +107,8 @@ jobs:
       - name: Set Normal Image Builder
         run: |
           # 解压刚才下载的 zstd 压缩 ImageBuilder
-          tar --zstd -xf immortalwrt-imagebuilder-24.10.5-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64.tar.zst
-          cd immortalwrt-imagebuilder-24.10.5-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64
+          tar --zstd -xf *im*.tar.zst
+          cd *im*
           cp -f $GITHUB_WORKSPACE/config/repositories.conf .
           sed -i "s/DEVICE_SUBTARGET/$DEVICE_SUBTARGET/g; \
             s/DEVICE_TARGET/$DEVICE_TARGET/g; \
