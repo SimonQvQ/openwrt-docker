@@ -9,7 +9,8 @@
 name: Multi-Arch Images
 
 env:
-  PREFIX_URL: https://storage.openwrt.cc/snapshots/targets
+  # 使用 ImmortalWrt 24.10.5 官方镜像仓库作为 ImageBuilder 下载前缀
+  PREFIX_URL: https://downloads.immortalwrt.org/releases/24.10.5/targets
 
 on:
   workflow_dispatch:
@@ -101,10 +102,12 @@ jobs:
 
       - name: Download Image Builder
         run: |
-          wget -q $PREFIX_URL/$DEVICE_TARGET/$DEVICE_SUBTARGET/immortalwrt-imagebuilder-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64.tar.xz
+          # 下载 ImmortalWrt 24.10.5 对应架构的 ImageBuilder（zstd 压缩）
+          wget -q $PREFIX_URL/$DEVICE_TARGET/$DEVICE_SUBTARGET/immortalwrt-imagebuilder-24.10.5-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64.tar.zst
       - name: Set Normal Image Builder
         run: |
-          tar -xJf *.tar.xz
+          # 解压刚才下载的 zstd 压缩 ImageBuilder
+          tar --zstd -xf immortalwrt-imagebuilder-24.10.5-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64.tar.zst
           cd immortalwrt-imagebuilder-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64
           cp -f $GITHUB_WORKSPACE/config/repositories.conf .
           sed -i "s/DEVICE_SUBTARGET/$DEVICE_SUBTARGET/g; \
@@ -127,12 +130,12 @@ jobs:
             /CONFIG_TARGET_ROOTFS_EXT4FS/s/.*/# CONFIG_TARGET_ROOTFS_EXT4FS is not set/" .config
           export CONFIG_NORMAL_PACKAGES=$(cat $GITHUB_WORKSPACE/config/normal-packages.config | tr -s "\n" " ")
           make image PACKAGES="$CONFIG_NORMAL_PACKAGES" FILES="files"
-          cp bin/targets/$DEVICE_TARGET/$DEVICE_SUBTARGET/*rootfs.tar.gz $GITHUB_WORKSPACE
+          cp bin/targets/$DEVICE_TARGET/$DEVICE_SUBTARGET/*rootfs.tar.gz $GITHUB_WORKSPACE/openwrt-rootfs.tar.gz
           cd $GITHUB_WORKSPACE
           rm -rf immortalwrt-imagebuilder*
 
       - name: Build & Push Normal Image (Default)
-        if: env.DOCKER_EXTERA_TAG == null
+        if: env.DOCKER_EXTERA_TAG == ''
         uses: docker/build-push-action@v2
         with:
           platforms: ${{ env.DOCKER_IMAGE_ARCH }}
