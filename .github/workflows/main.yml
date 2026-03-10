@@ -1,8 +1,11 @@
-name: Build OpenWrt x86 Image
+name: Build OpenWrt Docker Base
 
 on:
+  schedule:
+    - cron: 0 0 * * *
 
 env:
+  # 建议使用 ImmortalWrt 稳定版，内核更稳
   PREFIX_URL: https://downloads.immortalwrt.org/releases/24.10.5/targets/x86/64
   IB_NAME: immortalwrt-imagebuilder-24.10.5-x86-64.Linux-x86_64
 
@@ -16,8 +19,8 @@ jobs:
       - name: Initialization Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libncurses5-dev gawk git gettext \
-            libssl-dev xsltproc rsync wget unzip python3 qemu-utils zstd genisoimage
+          # 注意：这里我们不需要安装 genisoimage 或 qemu-utils，因为我们要禁用相关构建
+          sudo apt-get install -y build-essential gawk git wget python3 zstd rsync
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -25,39 +28,51 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PWD }}
 
-      - name: Download and Setup Image Builder
+      - name: Download Image Builder
         run: |
           wget -q $PREFIX_URL/$IB_NAME.tar.zst
           tar --zstd -xf $IB_NAME.tar.zst
-          cd $IB_NAME
-          # 拷贝配置文件与自定义文件
-          cp -rf $GITHUB_WORKSPACE/files .
-          [ -f files/etc/rc.local ] && chmod +x files/etc/rc.local
 
-     - name: Build RootFS
+      - name: Build RootFS
         run: |
           cd $IB_NAME
+          
+          # 1. 拷贝自定义文件 (files 目录下的配置)
+          if [ -d "$GITHUB_WORKSPACE/files" ]; then
+            cp -rf $GITHUB_WORKSPACE/files .
+          fi
+
+          # 2. 将自定义软件源写入 rootfs 内的 distfeeds.conf
+          # 这样最终系统中的 /etc/opkg/distfeeds.conf 会使用你在 config/repositories.conf 中定义的源
+          if [ -f "$GITHUB_WORKSPACE/config/repositories.conf" ]; then
+            mkdir -p files/etc/opkg
+            cp -f "$GITHUB_WORKSPACE/config/repositories.conf" files/etc/opkg/distfeeds.conf
+          fi
+
+          # 3. 确保 rc.local 具有可执行权限，保证开机初始化脚本能够正常运行
+          if [ -f "files/etc/rc.local" ]; then
+            chmod +x files/etc/rc.local
+          fi
+
+          # 4. 读取你的官方基础包列表
           PACKAGES=$(cat $GITHUB_WORKSPACE/config/normal-packages.config | tr -s "\n" " ")
           
-          # 核心修正：拼写改为 CONFIG_TARGET_ROOTFS_TARGZ
-          make image PACKAGES="$PACKAGES" FILES="$GITHUB_WORKSPACE/files" \
+          # 5. 执行编译：通过 make 传入配置覆盖 .config，避免产生重复条目
+          #    这里显式关闭除 rootfs tar.gz 之外的其他镜像格式
+          make image PACKAGES="$PACKAGES" FILES="files" \
+            CONFIG_TARGET_ROOTFS_SQUASHFS=n \
+            CONFIG_TARGET_ROOTFS_EXT4FS=n \
             CONFIG_TARGET_ROOTFS_TARGZ=y \
-            CONFIG_TARGET_IMAGES_GZ=n \
-            CONFIG_TARGET_IMAGE_ISO=n \
-            CONFIG_TARGET_IMAGE_VHDX=n \
-            CONFIG_VMDK_IMAGES=n \
-            CONFIG_GRUB_IMAGES=n \
-            CONFIG_TARGET_IMAGES_PAD=n
-
-          # 现在这个命令就能找到生成的 .tar.gz 文件了
+            CONFIG_TARGET_IMAGES_GZ=n
+          
+          # 7. 将产物移动到根目录准备 Docker 构建
           mv bin/targets/x86/64/*rootfs.tar.gz $GITHUB_WORKSPACE/openwrt-rootfs.tar.gz
 
-      - name: Build and Push Docker Image
+      - name: Build and Push Docker
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/openwrt:x86_64
-            ${{ secrets.DOCKERHUB_USERNAME }}/openwrt:latest
+          # 这里的 tags 请修改为你自己的 Docker Hub 用户名
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/openwrt-base:latest
